@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { resolve } from "./resolve.ts";
+import { resolve, type Outcome } from "./resolve.ts";
 
 const load = (name: string): string =>
   readFileSync(new URL(`../fixtures/${name}.html`, import.meta.url), "utf8");
@@ -71,10 +71,17 @@ test("a page that arrived but did not parse is unknown, not unavailable", async 
   assert.equal(outcome.kind, "unknown");
 });
 
-test("the five kinds are exhaustive for a caller", () => {
-  // A compile-time check: if a kind is added without updating callers, this
-  // stops type-checking. It costs nothing at runtime.
-  const kinds: Array<Awaited<ReturnType<typeof resolve>>["kind"]> =
-    ["found", "gone", "unknown", "unavailable", "not-instagram"];
-  assert.equal(new Set(kinds).size, 5);
+test("every Outcome kind is accounted for", () => {
+  // A compile-time exhaustiveness check that fails BOTH ways: remove a kind
+  // from the union and this object has an extra key; add one and it has a
+  // missing key. Either stops the build.
+  //
+  // An array of the literals was tried first and measured: adding a sixth
+  // kind still type-checks, because five literals remain valid members of a
+  // larger union. It catches removal only -- the opposite of the failure a
+  // caller cares about.
+  const kinds: Record<Outcome["kind"], true> = {
+    found: true, gone: true, unknown: true, unavailable: true, "not-instagram": true,
+  };
+  assert.equal(Object.keys(kinds).length, 5);
 });
