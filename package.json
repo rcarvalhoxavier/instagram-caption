@@ -15,6 +15,7 @@
     "build": "tsc -p tsconfig.build.json",
     "test": "node --test src/*.test.ts",
     "typecheck": "tsc --noEmit",
+    "test:package": "bash scripts/verify-package.sh",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": { "typescript": "^7.0.0", "@types/node": "^26.6.1" }
