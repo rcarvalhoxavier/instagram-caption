@@ -122,6 +122,44 @@ test("a browser-like User-Agent is refused before any request is made", async ()
   assert.equal(called, false, "the guard must run before the network does");
 });
 
+test("Retry-After is honoured on any non-terminal status, not only 429", async () => {
+  // RFC 7231 section 7.1.3 defines Retry-After for 503 as well, and that is
+  // its older and more common use. A 503 asking for room and getting generic
+  // backoff instead is this package hammering a server that said not to.
+  const slept: number[] = [];
+  let calls = 0;
+  const fetchImpl = async (): Promise<Response> => {
+    calls++;
+    if (calls === 1) return new Response("", { status: 503, headers: { "retry-after": "30" } });
+    return ok("<html>ok</html>");
+  };
+  const result = await fetchEmbed("ABC", {
+    retries: 3, fetchImpl, sleep: async (ms: number) => { slept.push(ms); },
+  });
+  assert.equal(result.ok, true);
+  assert.deepEqual(slept, [30_000], "a 503 asking for 30s must not get generic backoff");
+});
+
+test("a non-terminal status without a usable Retry-After falls back to backoff", async () => {
+  // The header is trusted only when it parses to a positive number. Absent,
+  // malformed and negative all mean "the server did not usefully tell us",
+  // which is the generic backoff's case.
+  for (const header of [null, "abc", "-5"]) {
+    const slept: number[] = [];
+    let calls = 0;
+    const fetchImpl = async (): Promise<Response> => {
+      calls++;
+      const headers = header === null ? {} : { "retry-after": header };
+      if (calls === 1) return new Response("", { status: 503, headers });
+      return ok("<html>ok</html>");
+    };
+    await fetchEmbed("ABC", {
+      retries: 3, fetchImpl, sleep: async (ms: number) => { slept.push(ms); },
+    });
+    assert.deepEqual(slept, [2_000], `Retry-After ${String(header)} must fall through to backoff`);
+  }
+});
+
 test("Retry-After is honoured and capped", async () => {
   const slept: number[] = [];
   let calls = 0;

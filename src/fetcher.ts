@@ -113,7 +113,12 @@ export async function fetchEmbed(
       // Honour the server telling us how long to wait, capped so a hostile or
       // mistaken header cannot park the caller. Skipped on the final attempt,
       // where sleeping would delay a result we are about to return anyway.
-      if (response.status === 429 && attempt < retries) {
+      //
+      // Any non-terminal status may carry Retry-After, not just 429: RFC 7231
+      // section 7.1.3 defines it for 503 too, which is its older and more
+      // common use. Keying on the header rather than on the status means a
+      // server that asks for room gets it, whichever way it says so.
+      if (attempt < retries) {
         const after = Number(response.headers.get("retry-after"));
         if (Number.isFinite(after) && after > 0) {
           await sleep(Math.min(after, RETRY_AFTER_CAP_SECONDS) * 1000);
