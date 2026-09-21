@@ -10,7 +10,17 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+
+# The tarball is written into the repo root, not into $work, so cleaning only
+# the temp directory leaves it behind on every failing run. Measured: sabotage
+# the exports field and the script exits 1 with the .tgz still sitting in the
+# project root. The guard on ${tarball:-} covers the window before npm pack
+# has assigned it.
+cleanup() {
+  rm -rf "$work"
+  if [ -n "${tarball:-}" ]; then rm -f "$root/$tarball"; fi
+}
+trap cleanup EXIT
 
 cd "$root"
 npm run build
@@ -42,6 +52,3 @@ node check.mjs
 test -f node_modules/instagram-caption/dist/index.d.ts \
   || { echo "ERROR: dist/index.d.ts missing from the tarball"; exit 1; }
 echo "type declarations present"
-
-cd "$root"
-rm -f "$tarball"
