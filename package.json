@@ -9,7 +9,7 @@
   "type": "module",
   "engines": { "node": ">=24" },
   "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
-  "bin": { "instagram-caption": "./dist/bin.js" },
+  "bin": { "instagram-caption": "dist/bin.js" },
   "files": ["dist"],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
