@@ -10,6 +10,12 @@ const JSON_CAPTION =
   /edge_media_to_caption\\":\{\\"edges\\":\[\{\\"node\\":\{\\"text\\":\\"(.*?)\\"\}\}\]/s;
 const HTML_CAPTION = /class="Caption">(.*?)<\/div>/s;
 const CAPTION_USERNAME_LINK = /<a[^>]*class="CaptionUsername"[^>]*>.*?<\/a>/s;
+// The caption div CONTAINS a nested CaptionComments div holding Instagram's
+// own "View all N comments" link. HTML_CAPTION stops at the first </div>,
+// which is that nested block's close, so its text is inside the capture. Left
+// in, every HTML-variant caption ends with page chrome, and a post with no
+// caption resolves to the caption "View all comments".
+const CAPTION_COMMENTS = /<div[^>]*class="CaptionComments"[\s\S]*$/;
 const TAGS = /<[^>]+>/g;
 const WHITESPACE = /\s+/g;
 
@@ -54,7 +60,9 @@ function captionFromHtml(document: string): string | null {
   if (!document.includes('class="Caption"')) return null;
   const match = HTML_CAPTION.exec(document);
   if (match === null) return null;
-  return unescapeHtml(match[1]!.replace(CAPTION_USERNAME_LINK, "").replace(TAGS, ""));
+  return unescapeHtml(
+    match[1]!.replace(CAPTION_COMMENTS, "").replace(CAPTION_USERNAME_LINK, "").replace(TAGS, ""),
+  );
 }
 
 export function classify(document: string): ParseResult {

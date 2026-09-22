@@ -75,6 +75,24 @@ test("an author marker that trims to nothing is unknown, not found", () => {
   }
 });
 
+test("the HTML variant does not end with Instagram's own comments chrome", () => {
+  // HTML_CAPTION stops at the first </div>, which closes a NESTED
+  // CaptionComments div, so its "View all N comments" link was landing in the
+  // caption. The existing tests assert startsWith, which is why this survived.
+  const result = classify(load("embed_html"));
+  if (result.kind !== "found") return assert.fail("expected found");
+  assert.ok(!/View all/i.test(result.caption), `chrome leaked: ${result.caption.slice(-40)}`);
+  assert.ok(result.caption.endsWith("cometas."), `unexpected tail: ${result.caption.slice(-40)}`);
+});
+
+test("a post with no caption stays empty instead of becoming the comments link", () => {
+  const html = `<span class="UsernameText">x</span>` +
+    `<div class="Caption"><div class="CaptionComments"><a>View all 12 comments</a></div></div>`;
+  const result = classify(html);
+  if (result.kind !== "found") return assert.fail("expected found");
+  assert.equal(result.caption, "");
+});
+
 test("an out-of-range numeric entity is left alone, never thrown on", () => {
   // String.fromCodePoint throws RangeError above 0x10FFFF. A caption is text
   // someone else wrote, so a throw here would surface as a crash in a caller
