@@ -1,0 +1,34 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Scoped down rather than inheriting the repository default: nothing in this
+# job writes anywhere, and a public repo should say so explicitly.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - run: npm ci
+      - name: source must be ASCII-only (see Global Constraints)
+        run: |
+          if grep -rP '[^\x00-\x7F]' src scripts; then
+            echo "::error::non-ASCII byte in source; use an escape like \\u00a0 instead"
+            exit 1
+          fi
+      - run: npx tsc --noEmit
+      - run: node --test src/*.test.ts
+      # The only step that exercises what users actually install. Every test
+      # above runs against src/, which is outside node_modules -- where Node
+      # will strip types. Inside node_modules it refuses to, so a package
+      # shipping raw .ts would pass everything above and fail on install.
+      - run: npm run test:package
+      - run: npm publish --dry-run

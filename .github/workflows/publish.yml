@@ -1,0 +1,28 @@
+name: publish
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  # Required for npm provenance: it signs the package against this workflow run,
+  # so anyone can verify the tarball came from this repo and not a laptop.
+  id-token: write
+
+jobs:
+  npm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: node --test src/*.test.ts
+      - run: npm run test:package
+      # prepublishOnly runs the build, so dist/ is fresh here by construction.
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
