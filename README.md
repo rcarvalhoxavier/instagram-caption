@@ -19,6 +19,10 @@ It is on the public embed endpoint, and this package reads it.
 npm install instagram-caption
 ```
 
+TypeScript consumers need ambient `fetch` types, which means `@types/node` for
+Node or `"lib": ["dom"]` for the browser. The package's `Fetcher` type is
+`typeof fetch`, so a project with neither will not compile against it.
+
 ## Use
 
 ```javascript

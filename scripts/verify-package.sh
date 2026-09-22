@@ -30,7 +30,11 @@ echo "packed: $tarball"
 mkdir -p "$work/consumer"
 cd "$work/consumer"
 printf '{ "name": "consumer", "private": true, "type": "module" }\n' > package.json
-npm install --silent --no-audit --no-fund "$root/$tarball"
+# @types/node is a dev-time concern of THIS TEST, not a dependency of the
+# package: a real Node consumer already has it (or lib dom) in their own
+# project, and installing it here is what makes the throwaway project match
+# that reality instead of a configuration no real consumer has.
+npm install --silent --no-audit --no-fund "$root/$tarball" @types/node@^26.6.1
 
 cat > check.mjs <<'CHECK'
 import { classify, resolve, extractShortcode, DEFAULT_USER_AGENT } from "instagram-caption";
@@ -47,8 +51,25 @@ CHECK
 
 node check.mjs
 
-# The types must ship too: a TypeScript consumer that gets `any` has a package
-# that technically imports and practically lies.
-test -f node_modules/instagram-caption/dist/index.d.ts \
-  || { echo "ERROR: dist/index.d.ts missing from the tarball"; exit 1; }
-echo "type declarations present"
+# A declaration file that exists but does not type-check is worse than none.
+# The consumer gets @types/node because the published types reference `fetch`
+# via `typeof fetch`, and every real Node consumer has those ambient types --
+# measured: with @types/node or with lib dom this compiles clean, with neither
+# it cannot, and a consumer with neither could not call fetch themselves either.
+cat > consumer.ts <<'CONSUMER'
+import { resolve, type Outcome } from "instagram-caption";
+export const check = async (u: string): Promise<Outcome["kind"]> => (await resolve(u)).kind;
+CONSUMER
+cat > tsconfig.json <<'TSCONFIG'
+{
+  "compilerOptions": {
+    "target": "ES2023", "lib": ["ES2023"], "module": "nodenext",
+    "moduleResolution": "nodenext", "strict": true, "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["consumer.ts"]
+}
+TSCONFIG
+"$root/node_modules/.bin/tsc" -p tsconfig.json \
+  || { echo "ERROR: the published type declarations do not type-check for a consumer"; exit 1; }
+echo "type declarations compile for a consumer"
