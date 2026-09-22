@@ -95,10 +95,13 @@ export function classify(document: string): ParseResult {
   // an Instagram handle turns that into unknown -- which asserts nothing --
   // instead of a byline full of junk.
   if (!HANDLE.test(author)) {
-    // Sliced by grapheme, not by UTF-16 unit: this string goes into a message
-    // a caller may log, and cutting a surrogate pair in half there is a defect
-    // of its own.
-    const shown = [...GRAPHEMES.segment(author)].slice(0, 40).map((g) => g.segment).join("");
+    // Sliced by UTF-16 unit FIRST: segmenting the whole capture materialises
+    // every grapheme of it, and the capture is "anything that is not a tag",
+    // so a reshaped page can make it megabytes. Measured at the 4 MiB body cap
+    // fetchEmbed permits: 2.3s of blocked event loop and 522MB. 400 units is
+    // far more than the 40 graphemes kept.
+    const shown = [...GRAPHEMES.segment(author.slice(0, 400))]
+      .slice(0, 40).map((g) => g.segment).join("");
     return { kind: "unknown", reason: `author does not look like a handle: "${shown}"` };
   }
 

@@ -114,3 +114,13 @@ test("an out-of-range numeric entity is left alone, never thrown on", () => {
   assert.equal(unescapeHtml("&#-1;"), "&#-1;");
   assert.equal(unescapeHtml("&#128640;"), "\u{1F680}");
 });
+
+test("a huge author capture does not block the event loop", () => {
+  // The capture is "anything that is not a tag", so a reshaped page can make
+  // it megabytes. Segmenting all of it cost seconds and hundreds of MB.
+  const huge = `<span class="UsernameText">${"\u{1F680}".repeat(300_000)}</span>`;
+  const started = Date.now();
+  assert.equal(classify(huge).kind, "unknown");
+  const elapsed = Date.now() - started;
+  assert.ok(elapsed < 100, `took ${elapsed}ms; the slice before segmenting is missing`);
+});
