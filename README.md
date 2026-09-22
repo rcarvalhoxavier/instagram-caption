@@ -19,6 +19,10 @@ It is on the public embed endpoint, and this package reads it.
 npm install instagram-caption
 ```
 
+Requires Node.js 24 or later. The published JavaScript itself needs nothing
+newer than Node 18, but the floor has not been tested below 24, and this
+package does not claim support it has not measured.
+
 TypeScript consumers need ambient `fetch` types, which means `@types/node` for
 Node or `"lib": ["dom"]` for the browser. The package's `Fetcher` type is
 `typeof fetch`, so a project with neither will not compile against it.

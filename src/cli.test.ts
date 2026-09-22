@@ -40,6 +40,14 @@ test("parseArgs recognises --help", () => {
   assert.equal(parseArgs(["--help"]).help, true);
 });
 
+test("an unknown flag is a usage error, not a url", () => {
+  assert.throws(() => parseArgs(["--dealy", "0", "https://www.instagram.com/p/A/"]), /unknown option --dealy/);
+});
+
+test("a bare dash is not treated as a flag", () => {
+  assert.deepEqual(parseArgs(["-"]).urls, ["-"]);
+});
+
 // The three exit codes are a documented contract, and the usage text promises
 // them. Reaching them means driving main() itself, so it takes its writes and
 // its fetch through injectable defaults: quiet sinks keep the suite's output

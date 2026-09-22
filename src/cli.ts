@@ -48,6 +48,12 @@ export function parseArgs(argv: readonly string[]): Args {
       delayMs = parsed;
       continue;
     }
+    // Anything that looks like a flag but is not one is a typo, not a URL.
+    // Pushing it into urls made `--dealy 0 URL` print spurious not-instagram
+    // lines, silently ignore the pause the user asked for, and exit 0.
+    if (arg.startsWith("-") && arg !== "-") {
+      throw new Error(`unknown option ${arg}`);
+    }
     urls.push(arg);
   }
   return { urls, delayMs, help };
