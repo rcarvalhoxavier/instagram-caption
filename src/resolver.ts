@@ -16,6 +16,12 @@ const CAPTION_USERNAME_LINK = /<a[^>]*class="CaptionUsername"[^>]*>.*?<\/a>/s;
 // in, every HTML-variant caption ends with page chrome, and a post with no
 // caption resolves to the caption "View all comments".
 const CAPTION_COMMENTS = /<div[^>]*class="CaptionComments"[\s\S]*$/;
+// Tags are removed, not replaced, so a line break has to become whitespace
+// before that happens or the two lines are glued into one word. The JSON
+// variant gets a real newline from its double decode, which WHITESPACE folds
+// to a space -- without this the same post reads differently depending on
+// which variant Instagram served.
+const LINE_BREAK = /<br\s*\/?>/gi;
 const TAGS = /<[^>]+>/g;
 const WHITESPACE = /\s+/g;
 
@@ -61,7 +67,11 @@ function captionFromHtml(document: string): string | null {
   const match = HTML_CAPTION.exec(document);
   if (match === null) return null;
   return unescapeHtml(
-    match[1]!.replace(CAPTION_COMMENTS, "").replace(CAPTION_USERNAME_LINK, "").replace(TAGS, ""),
+    match[1]!
+      .replace(CAPTION_COMMENTS, "")
+      .replace(CAPTION_USERNAME_LINK, "")
+      .replace(LINE_BREAK, " ")
+      .replace(TAGS, ""),
   );
 }
 

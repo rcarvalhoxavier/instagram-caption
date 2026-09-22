@@ -48,6 +48,14 @@ test("no author and no broken marker means unknown", () => {
   assert.equal(classify(load("embed_blocked_synthetic")).kind, "unknown");
 });
 
+test("a line break becomes a space, so the two variants agree", () => {
+  const html = `<span class="UsernameText">x</span>` +
+    `<div class="Caption">line one<br />line two</div>`;
+  const result = classify(html);
+  if (result.kind !== "found") return assert.fail("expected found");
+  assert.equal(result.caption, "line one line two");
+});
+
 for (const junk of ["", "<html></html>", "garbage"]) {
   test(`junk input ${JSON.stringify(junk)} is unknown, never gone`, () => {
     assert.equal(classify(junk).kind, "unknown");
