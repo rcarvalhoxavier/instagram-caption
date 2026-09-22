@@ -1,0 +1,96 @@
+import { createInterface } from "node:readline";
+import { resolve, type Outcome } from "./resolve.ts";
+
+const DEFAULT_DELAY_MS = 1500;
+
+const USAGE = `instagram-caption - resolve the author and caption of public Instagram posts
+
+Usage:
+  instagram-caption [--delay MS] URL...
+  cat urls.txt | instagram-caption [--delay MS]
+
+Options:
+  --delay MS   Milliseconds to wait between requests (default: ${DEFAULT_DELAY_MS}).
+  --help       Show this message.
+
+Output is JSONL: one JSON object per line, in input order, each with a "url"
+and a "kind" of found, gone, unknown, unavailable or not-instagram.
+
+Exit codes:
+  0  every URL produced an outcome
+  1  at least one URL was unavailable and retryable
+  2  usage error
+`;
+
+export interface Args {
+  readonly urls: string[];
+  readonly delayMs: number;
+  readonly help: boolean;
+}
+
+export function parseArgs(argv: readonly string[]): Args {
+  const urls: string[] = [];
+  let delayMs = DEFAULT_DELAY_MS;
+  let help = false;
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "--help" || arg === "-h") { help = true; continue; }
+    if (arg === "--delay") {
+      const raw = argv[++i];
+      const parsed = Number(raw);
+      // Number("abc") is NaN and Number(undefined) is NaN; either would silently
+      // become "no pause", which is the opposite of what the flag is for.
+      if (raw === undefined || !Number.isFinite(parsed) || parsed < 0) {
+        throw new Error(`--delay needs a number of milliseconds >= 0, got ${String(raw)}`);
+      }
+      delayMs = parsed;
+      continue;
+    }
+    urls.push(arg);
+  }
+  return { urls, delayMs, help };
+}
+
+export function formatLine(url: string, outcome: Outcome): string {
+  // JSON.stringify escapes newlines, so one outcome is always one line. That
+  // is the only guarantee a shell consumer can build on.
+  return JSON.stringify({ url, ...outcome });
+}
+
+async function readStdin(): Promise<string[]> {
+  if (process.stdin.isTTY) return [];
+  const urls: string[] = [];
+  for await (const line of createInterface({ input: process.stdin })) {
+    const trimmed = line.trim();
+    if (trimmed !== "") urls.push(trimmed);
+  }
+  return urls;
+}
+
+const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+export async function main(): Promise<number> {
+  let args: Args;
+  try {
+    args = parseArgs(process.argv.slice(2));
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    return 2;
+  }
+  if (args.help) { process.stdout.write(USAGE); return 0; }
+
+  const urls = args.urls.length > 0 ? args.urls : await readStdin();
+  if (urls.length === 0) { process.stderr.write(USAGE); return 2; }
+
+  let sawRetryable = false;
+  for (const [index, url] of urls.entries()) {
+    const outcome = await resolve(url);
+    if (outcome.kind === "unavailable" && outcome.retryable) sawRetryable = true;
+    process.stdout.write(`${formatLine(url, outcome)}\n`);
+    // Only pause between real requests: a URL that is not Instagram never hit
+    // the network, so pausing after it would just make the tool feel broken.
+    if (index < urls.length - 1 && outcome.kind !== "not-instagram") await wait(args.delayMs);
+  }
+  return sawRetryable ? 1 : 0;
+}
