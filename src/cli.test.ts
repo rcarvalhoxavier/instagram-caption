@@ -57,12 +57,21 @@ test("exit 1 when at least one url was retryably unavailable", async () => {
 
 test("exit 0 when the failure was terminal, because retrying cannot help", async () => {
   // A 404 is unavailable too, but not retryable. Exit 1 means "run me again";
-  // saying that about a post that will never resolve would be a lie.
+  // saying that about a post that will never resolve would be a lie. Asserting
+  // only the code would pass even if nothing had failed at all, so the output
+  // line is checked too.
+  const lines: string[] = [];
   const code = await main({
-    ...quiet, argv: ["https://www.instagram.com/p/ABC/"],
+    argv: ["https://www.instagram.com/p/ABC/"],
+    write: (text: string): void => { lines.push(text); },
+    writeError: (): void => {},
     options: { retries: 1, sleep: noSleep, fetchImpl: async () => new Response("", { status: 404 }) },
   });
   assert.equal(code, 0);
+  assert.equal(lines.length, 1);
+  const outcome = JSON.parse(lines[0]!) as { kind: string; retryable: boolean };
+  assert.equal(outcome.kind, "unavailable");
+  assert.equal(outcome.retryable, false);
 });
 
 test("exit 2 on a usage error", async () => {
