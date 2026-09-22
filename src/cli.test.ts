@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatLine, parseArgs } from "./cli.ts";
+import { formatLine, main, parseArgs } from "./cli.ts";
 
 test("each outcome serialises to one JSON object with the url", () => {
   const line = formatLine("https://www.instagram.com/p/ABC/", { kind: "gone" });
@@ -38,4 +38,33 @@ test("parseArgs rejects a non-numeric delay instead of defaulting", () => {
 
 test("parseArgs recognises --help", () => {
   assert.equal(parseArgs(["--help"]).help, true);
+});
+
+// The three exit codes are a documented contract, and the usage text promises
+// them. Reaching them means driving main() itself, so it takes its writes and
+// its fetch through injectable defaults: quiet sinks keep the suite's output
+// clean, and a stub fetch reaches the retryable path with no network.
+const quiet = { write: (): void => {}, writeError: (): void => {} };
+const noSleep = async (): Promise<void> => {};
+
+test("exit 1 when at least one url was retryably unavailable", async () => {
+  const code = await main({
+    ...quiet, argv: ["https://www.instagram.com/p/ABC/"],
+    options: { retries: 1, sleep: noSleep, fetchImpl: async () => new Response("", { status: 503 }) },
+  });
+  assert.equal(code, 1);
+});
+
+test("exit 0 when the failure was terminal, because retrying cannot help", async () => {
+  // A 404 is unavailable too, but not retryable. Exit 1 means "run me again";
+  // saying that about a post that will never resolve would be a lie.
+  const code = await main({
+    ...quiet, argv: ["https://www.instagram.com/p/ABC/"],
+    options: { retries: 1, sleep: noSleep, fetchImpl: async () => new Response("", { status: 404 }) },
+  });
+  assert.equal(code, 0);
+});
+
+test("exit 2 on a usage error", async () => {
+  assert.equal(await main({ ...quiet, argv: ["--delay", "abc", "u"] }), 2);
 });

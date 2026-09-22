@@ -1,5 +1,6 @@
 import { createInterface } from "node:readline";
 import { resolve, type Outcome } from "./resolve.ts";
+import type { FetchOptions } from "./fetcher.ts";
 
 const DEFAULT_DELAY_MS = 1500;
 
@@ -70,24 +71,46 @@ async function readStdin(): Promise<string[]> {
 
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-export async function main(): Promise<number> {
+/**
+ * Everything main() touches that a test needs to control. Defaults are the
+ * real thing, so `main()` with no argument is the production path and bin.ts
+ * needs no knowledge of this.
+ *
+ * Without the write sinks a test would print JSON into the suite's output;
+ * without `options` the exit-code-1 path could only be reached by making a
+ * real request to Instagram, which no test may do.
+ */
+export interface MainDeps {
+  readonly argv?: readonly string[];
+  readonly options?: FetchOptions;
+  readonly write?: (text: string) => void;
+  readonly writeError?: (text: string) => void;
+}
+
+export async function main(deps: MainDeps = {}): Promise<number> {
+  const {
+    argv = process.argv.slice(2),
+    options = {},
+    write = (text: string): void => { process.stdout.write(text); },
+    writeError = (text: string): void => { process.stderr.write(text); },
+  } = deps;
   let args: Args;
   try {
-    args = parseArgs(process.argv.slice(2));
+    args = parseArgs(argv);
   } catch (error) {
-    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    writeError(`${error instanceof Error ? error.message : String(error)}\n`);
     return 2;
   }
-  if (args.help) { process.stdout.write(USAGE); return 0; }
+  if (args.help) { write(USAGE); return 0; }
 
   const urls = args.urls.length > 0 ? args.urls : await readStdin();
-  if (urls.length === 0) { process.stderr.write(USAGE); return 2; }
+  if (urls.length === 0) { writeError(USAGE); return 2; }
 
   let sawRetryable = false;
   for (const [index, url] of urls.entries()) {
-    const outcome = await resolve(url);
+    const outcome = await resolve(url, options);
     if (outcome.kind === "unavailable" && outcome.retryable) sawRetryable = true;
-    process.stdout.write(`${formatLine(url, outcome)}\n`);
+    write(`${formatLine(url, outcome)}\n`);
     // Only pause between real requests: a URL that is not Instagram never hit
     // the network, so pausing after it would just make the tool feel broken.
     if (index < urls.length - 1 && outcome.kind !== "not-instagram") await wait(args.delayMs);
