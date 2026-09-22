@@ -69,8 +69,10 @@ shell instead of the rendered embed, and the shell does not fail - it parses as
 
 It does not download media, does not archive content, and uses no Instagram
 credentials. It reads the same public embed endpoint any website uses to show
-an embedded post. Private accounts and age-restricted posts can never be
-resolved; expect `unknown` for those.
+an embedded post, so it can never resolve a private or age-restricted post.
+Which outcome such a post produces has not been tested against a real private
+account, so this README does not claim one - do not assume it is `unknown`
+rather than `gone`.
 
 Rate limiting is your responsibility. The CLI pauses 1.5s between requests;
 the library does not pause at all, because it does not know what else you are
